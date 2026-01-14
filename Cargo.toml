@@ -7,3 +7,4 @@ edition = "2024"
 "agave-validator" = {version = "3.0.14"}
 "tokio" = { version = "1.28", features = ["full"] }
 "solana-rpc-client" =  {version = "3.0.14"}
+libc = "0.2.180"
