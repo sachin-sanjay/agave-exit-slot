@@ -1,35 +1,58 @@
 use std::{io, thread, time::Duration};
 use {
     agave_validator::admin_rpc_service,
-    std::path::Path,
+    clap::{Arg, ArgMatches, command},
     solana_rpc_client::rpc_client::RpcClient,
-    std::error::Error
+    std::path::Path,
 };
 #[tokio::main]
 async fn main() {
-    let ledger_path=Path::new("/mnt/ledger");
-    let admin_client= admin_rpc_service::connect(ledger_path).await.unwrap();
+    let results: ArgMatches = command!()
+        .arg(
+            Arg::new("target-slot")
+                .short('t')
+                .long("target-slot")
+                .required(true),
+        )
+        .arg(
+            Arg::new("ledger-path")
+                .short('l')
+                .long("ledger-path")
+                .required(true),
+        )
+        .get_matches();
+    let p = results.get_one::<String>("ledger-path").unwrap();
+    println!("value {:?}", p);
+    let ledger_path = Path::new(p);
+    let admin_client = admin_rpc_service::connect(ledger_path).await.unwrap();
     println!("connected to ledger");
-    let pid=admin_client.pid().await.unwrap();
-    let rpc_endpoint=admin_client.rpc_addr().await.unwrap();
+    let pid = admin_client.pid().await.unwrap();
+    let rpc_endpoint = admin_client.rpc_addr().await.unwrap();
     let rpc_client = RpcClient::new_socket(rpc_endpoint.unwrap());
-    let mut identity =rpc_client.get_identity().unwrap();
+    let identity = rpc_client.get_identity().unwrap();
     println!("Identity:{}", identity.to_string());
-    let mut current_slot=rpc_client.get_slot().unwrap();
+    let mut current_slot = rpc_client.get_slot().unwrap();
     println!("Current Slot:{}", current_slot);
-    let target_slot=current_slot+1000;
+    let target_slot_str = results.get_one::<String>("target-slot").unwrap();
+    let target_slot: u64 = target_slot_str.parse().unwrap();
     if target_slot < current_slot {
         panic!("Target slot must be greater than current slot");
     }
+    let mut temp = 0;
+    let mut diff = target_slot - current_slot;
     while target_slot > current_slot {
-        println!("{} slots left", target_slot-current_slot);
-        current_slot=rpc_client.get_slot().unwrap();
+        if temp != diff {
+            println!("{} slots left", diff);
+            temp = diff;
+        }
+        diff = target_slot - current_slot;
+        current_slot = rpc_client.get_slot().unwrap();
     }
     // exit
     admin_client.exit().await.unwrap();
     poll_until_pid_terminates(pid);
 }
-fn poll_until_pid_terminates(pid: u32){
+fn poll_until_pid_terminates(pid: u32) {
     let pid = i32::try_from(pid).unwrap();
 
     println!("Waiting for agave-validator process {pid} to terminate");
@@ -47,7 +70,16 @@ fn poll_until_pid_terminates(pid: u32){
             // Give the process some time to exit before checking again
             thread::sleep(Duration::from_millis(500));
         } else {
-        println!("couldn't exit");
+            let errno = io::Error::last_os_error().raw_os_error().unwrap();
+            match errno {
+                libc::ESRCH => {
+                    println!("Done, agave-validator process {pid} has terminated");
+                    break;
+                }
+                _ => {
+                    println!("waiting");
+                }
+            }
         }
     }
 }
