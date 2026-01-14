@@ -48,6 +48,21 @@ async fn main() {
         diff = target_slot - current_slot;
         current_slot = rpc_client.get_slot().unwrap();
     }
+    // check for the snapshot change
+    let mut highest_snapshot= rpc_client.get_highest_snapshot_slot().unwrap();
+    let full_snapshot_slot=highest_snapshot.full;
+    let incremental_snapshot_slot=highest_snapshot.incremental.unwrap();
+    highest_snapshot= rpc_client.get_highest_snapshot_slot().unwrap();
+    let new_full = highest_snapshot.full;
+    let new_incremental = highest_snapshot.incremental.unwrap();
+    let mut flag=false;
+    while new_full == full_snapshot_slot || new_incremental == incremental_snapshot_slot {
+        if flag == false {
+            println!("Waiting for new snapshot after reaching target slot {}", target_slot);
+            flag=true;
+        }
+    }
+
     // exit
     admin_client.exit().await.unwrap();
     poll_until_pid_terminates(pid);
