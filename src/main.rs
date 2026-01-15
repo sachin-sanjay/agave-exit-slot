@@ -38,7 +38,7 @@ async fn main() {
     if target_slot < current_slot {
         panic!("Target slot must be greater than current slot");
     }
-
+    let mut diff = target_slot - current_slot;
     while target_slot > current_slot {
         //add a sleep to avoid spamming the rpc server
         println!("{} slots left", diff);
