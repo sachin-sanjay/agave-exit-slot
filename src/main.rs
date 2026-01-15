@@ -38,16 +38,10 @@ async fn main() {
     if target_slot < current_slot {
         panic!("Target slot must be greater than current slot");
     }
-    let mut temp = 0;
-    let mut diff = target_slot - current_slot;
+
     while target_slot > current_slot {
-        if temp != diff {
-            println!("{} slots left", diff);
-            temp = diff;
-        }
-        diff = target_slot - current_slot;
         //add a sleep to avoid spamming the rpc server
-        thread::sleep(Duration::from_millis(400));
+        tokio::sleep(Duration::from_millis(400)).await;
         current_slot = rpc_client.get_slot().unwrap();
     }
     // check for the snapshot change
@@ -58,16 +52,13 @@ async fn main() {
     let mut new_full = highest_snapshot.full;
     let mut new_incremental = highest_snapshot.incremental.unwrap();
     let mut flag=false;
+    println!("Waiting for new snapshot after reaching target slot {}", target_slot);
     while new_full == full_snapshot_slot && new_incremental == incremental_snapshot_slot {
-        if flag == false {
-            println!("Waiting for new snapshot after reaching target slot {}", target_slot);
-            flag=true;
-        }
         highest_snapshot= rpc_client.get_highest_snapshot_slot().unwrap();
         new_full = highest_snapshot.full;
         new_incremental = highest_snapshot.incremental.unwrap(); 
         println!{"old snapshot {} vs new snapshot {}", incremental_snapshot_slot, new_incremental};   
-        thread::sleep(Duration::from_millis(2000));
+        tokio::time::sleep(Duration::from_millis(2000)).await;
     }
 
     // exit
